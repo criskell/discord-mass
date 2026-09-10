@@ -18,9 +18,9 @@ pub const STYLES: &str = r#"
   font-size: 13px;
 }
 .panel[hidden] { display: none !important; }
-.panel[data-collapsed="true"] .body,
-.panel[data-collapsed="true"] .footer,
-.panel[data-collapsed="true"] .log { display: none; }
+.panel.collapsed .body,
+.panel.collapsed .footer,
+.panel.collapsed .log { display: none; }
 
 .header {
   display: flex;
