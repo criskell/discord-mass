@@ -17,7 +17,7 @@ pub const STYLES: &str = r#"
   box-shadow: 0 12px 32px rgba(0, 0, 0, .5);
   font-size: 13px;
 }
-.panel[hidden], .launcher[hidden] { display: none !important; }
+.panel[hidden] { display: none !important; }
 .panel[data-collapsed="true"] .body,
 .panel[data-collapsed="true"] .footer,
 .panel[data-collapsed="true"] .log { display: none; }
@@ -124,20 +124,4 @@ button.action.danger { background: #da373c; }
 .log .dry { color: #00a8fc; }
 .log .error { color: #f2777a; }
 
-.launcher {
-  position: fixed;
-  top: 72px;
-  right: 24px;
-  z-index: 2147483647;
-  background: #5865f2;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  padding: 7px 12px;
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, .45);
-}
-.launcher:hover { filter: brightness(1.1); }
 "#;

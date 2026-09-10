@@ -7,7 +7,8 @@ Build it with `rustup target add wasm32-unknown-unknown`,
 `about:debugging`, click Load Temporary Add-on and pick `extension/manifest.json`. On Chrome, open
 `chrome://extensions`, turn on developer mode and load the `extension` folder.
 
-Open a Discord channel and refresh the page. The panel shows up in the top right corner. Simulate
-is on by default and lists what it would delete without deleting anything.
+Open a Discord channel, then click the discord-mass icon in the browser toolbar to show the panel.
+Simulate starts switched on: it lists what it would delete and deletes nothing. Switch it off once
+the list looks right.
 
 Nothing you delete comes back. Discord's rules forbid tools like this one.

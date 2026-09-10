@@ -16,8 +16,16 @@ pub fn panel() -> Html {
     let stats = use_state(Stats::default);
     let state = use_state(|| RunState::Idle);
     let control = use_mut_ref(|| None::<Control>);
-    let visible = use_state(|| true);
+    let visible = use_reducer(|| Visible(false));
     let collapsed = use_state(|| false);
+
+    {
+        let visible = visible.clone();
+        use_effect_with((), move |_| {
+            crate::bridge::register(Callback::from(move |_| visible.dispatch(())));
+            || ()
+        });
+    }
 
     let on_start = start_callback(&form, &log, &stats, &state, &control);
     let on_pause = pause_callback(&state, &control);
@@ -27,8 +35,7 @@ pub fn panel() -> Html {
     let panel_class = if *collapsed { "panel collapsed" } else { "panel" };
 
     html! {
-        <>
-            <div class={panel_class} hidden={!*visible}>
+            <div class={panel_class} hidden={!visible.0}>
                 { header(&visible, &collapsed) }
                 <div class="body">
                     { for TEXT_FIELDS.iter().map(|spec| text_field(&form, spec)) }
@@ -65,19 +72,28 @@ pub fn panel() -> Html {
                     { for log.lines.iter().map(render_line) }
                 </div>
             </div>
-            { launcher(&visible) }
-        </>
     }
 }
 
-fn header(visible: &UseStateHandle<bool>, collapsed: &UseStateHandle<bool>) -> Html {
+#[derive(PartialEq)]
+struct Visible(bool);
+
+impl Reducible for Visible {
+    type Action = ();
+
+    fn reduce(self: Rc<Self>, _action: Self::Action) -> Rc<Self> {
+        Rc::new(Visible(!self.0))
+    }
+}
+
+fn header(visible: &UseReducerHandle<Visible>, collapsed: &UseStateHandle<bool>) -> Html {
     let on_collapse = {
         let collapsed = collapsed.clone();
         Callback::from(move |_: MouseEvent| collapsed.set(!*collapsed))
     };
     let on_hide = {
         let visible = visible.clone();
-        Callback::from(move |_: MouseEvent| visible.set(false))
+        Callback::from(move |_: MouseEvent| visible.dispatch(()))
     };
 
     html! {
@@ -87,17 +103,6 @@ fn header(visible: &UseStateHandle<bool>, collapsed: &UseStateHandle<bool>) -> H
             <button class="icon-button" title="Recolher" onclick={on_collapse}>{ "–" }</button>
             <button class="icon-button" title="Esconder" onclick={on_hide}>{ "×" }</button>
         </div>
-    }
-}
-
-fn launcher(visible: &UseStateHandle<bool>) -> Html {
-    let on_show = {
-        let visible = visible.clone();
-        Callback::from(move |_: MouseEvent| visible.set(true))
-    };
-
-    html! {
-        <button class="launcher" hidden={**visible} onclick={on_show}>{ "discord-mass" }</button>
     }
 }
 
