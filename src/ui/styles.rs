@@ -128,11 +128,11 @@ button.action.danger { background: #da373c; }
 
 .log {
   border-top: 1px solid #2b2d31;
-  max-height: 150px;
+  max-height: 190px;
   overflow-y: auto;
-  padding: 8px 12px;
+  padding: 9px 12px;
   font-family: ui-monospace, Menlo, Consolas, monospace;
-  font-size: 12px;
+  font-size: 14px;
   line-height: 1.5;
   color: #949ba4;
 }
