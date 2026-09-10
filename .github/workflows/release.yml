@@ -1,0 +1,77 @@
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to publish, e.g. v0.3.0"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: version
+        run: |
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "number=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-
+
+      - name: Install wasm toolchain
+        run: |
+          rustup target add wasm32-unknown-unknown
+          version=$(grep -A1 'name = "wasm-bindgen"$' Cargo.lock | grep '^version' | head -1 | cut -d'"' -f2)
+          echo "wasm-bindgen $version"
+          curl -sSfL "https://github.com/rustwasm/wasm-bindgen/releases/download/${version}/wasm-bindgen-${version}-x86_64-unknown-linux-musl.tar.gz" \
+            | sudo tar xz -C /usr/local/bin --strip-components=1 --wildcards '*/wasm-bindgen'
+          wasm-bindgen --version
+
+      - name: Stamp manifest version
+        run: |
+          python3 - "${{ steps.version.outputs.number }}" <<'PY'
+          import json, pathlib, sys
+
+          path = pathlib.Path("extension/manifest.json")
+          manifest = json.loads(path.read_text())
+          manifest["version"] = sys.argv[1]
+          path.write_text(json.dumps(manifest, indent=2) + "\n")
+          PY
+
+      - name: Build
+        run: ./build.sh
+
+      - name: Package
+        id: package
+        run: |
+          name="discord-mass-${{ steps.version.outputs.number }}.zip"
+          (cd extension && zip -qr "../$name" .)
+          unzip -l "$name"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.version.outputs.tag }}" \
+            --title "${{ steps.version.outputs.tag }}" \
+            --notes-file .github/release-notes.md \
+            "${{ steps.package.outputs.name }}"
