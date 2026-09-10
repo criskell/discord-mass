@@ -45,6 +45,7 @@ impl LogLine {
 #[derive(Clone, Copy, Default, PartialEq, Eq)]
 pub struct Stats {
     pub deleted: u64,
+    pub simulated: u64,
     pub skipped: u64,
     pub failed: u64,
     pub remaining: u64,
@@ -69,6 +70,13 @@ pub async fn run(filters: Filters, control: Control, events: Events) -> Stats {
     let mut stats = Stats::default();
     let api = build_api(&events);
 
+    let mode = if filters.dry_run {
+        "simulação: nada será apagado"
+    } else {
+        "execução: as mensagens serão apagadas"
+    };
+    (events.log)(LogLine::new(LogKind::Dry, mode.to_owned()));
+
     let outcome = drive(&api, &filters, &control, &events, &mut stats).await;
 
     let final_state = match outcome {
@@ -83,7 +91,17 @@ pub async fn run(filters: Filters, control: Control, events: Events) -> Stats {
 
     control.set(final_state);
     (events.state)(final_state);
+    (events.log)(LogLine::new(LogKind::Dry, summary(&stats, filters.dry_run)));
     stats
+}
+
+fn summary(stats: &Stats, dry_run: bool) -> String {
+    let head = if dry_run {
+        format!("fim da simulação: {} seriam apagadas", stats.simulated)
+    } else {
+        format!("fim: {} apagadas", stats.deleted)
+    };
+    format!("{head}, {} puladas, {} falhas", stats.skipped, stats.failed)
 }
 
 async fn drive(
@@ -140,7 +158,7 @@ async fn process(
     }
 
     if filters.dry_run {
-        stats.deleted += 1;
+        stats.simulated += 1;
         let text = format!("apagaria — {}", describe(message));
         (events.log)(LogLine::new(LogKind::Dry, text));
         (events.stats)(*stats);

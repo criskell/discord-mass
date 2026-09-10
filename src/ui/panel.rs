@@ -33,6 +33,7 @@ pub fn panel() -> Html {
 
     let active = state.is_active();
     let panel_class = if *collapsed { "panel collapsed" } else { "panel" };
+    let start_label = if form.is_on(Field::DryRun) { "Simular" } else { "Apagar" };
 
     html! {
             <div class={panel_class} hidden={!visible.0}>
@@ -57,7 +58,7 @@ pub fn panel() -> Html {
                 <div class="footer">
                     <div class="actions">
                         <button class="action primary" disabled={active} onclick={on_start}>
-                            { "Começar" }
+                            { start_label }
                         </button>
                         <button class="action" disabled={!active} onclick={on_pause}>
                             { if *state == RunState::Paused { "Continuar" } else { "Pausar" } }
@@ -218,8 +219,14 @@ fn fill_buttons(form: &UseReducerHandle<Form>, log: &UseReducerHandle<LogModel>)
 }
 
 fn stats_row(stats: &UseStateHandle<Stats>) -> Html {
+    let first = if stats.simulated > 0 {
+        (stats.simulated, "simuladas")
+    } else {
+        (stats.deleted, "apagadas")
+    };
+
     let cells = [
-        (stats.deleted, "apagadas"),
+        first,
         (stats.skipped, "puladas"),
         (stats.failed, "falhas"),
         (stats.remaining, "restantes"),
