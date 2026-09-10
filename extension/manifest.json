@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "discord-mass",
+  "version": "0.1.0",
+  "description": "Apaga em massa as suas mensagens de um canal ou servidor do Discord.",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "discord-mass@local",
+      "strict_min_version": "115.0"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://discord.com/channels/*",
+        "https://ptb.discord.com/channels/*",
+        "https://canary.discord.com/channels/*"
+      ],
+      "js": ["pkg/discord_mass.js", "loader.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["pkg/discord_mass_bg.wasm"],
+      "matches": [
+        "https://discord.com/*",
+        "https://ptb.discord.com/*",
+        "https://canary.discord.com/*"
+      ]
+    }
+  ]
+}
