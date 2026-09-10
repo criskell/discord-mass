@@ -1,5 +1,6 @@
 use std::rc::Rc;
 
+use gloo_timers::callback::Interval;
 use wasm_bindgen_futures::spawn_local;
 use web_sys::{HtmlInputElement, HtmlSelectElement};
 use yew::prelude::*;
@@ -11,6 +12,8 @@ use super::form::{
     TEXT_FIELDS,
 };
 use super::log::{LogAction, LogModel};
+
+const CHANNEL_POLL_MS: u32 = 500;
 
 #[function_component(Panel)]
 pub fn panel() -> Html {
@@ -37,6 +40,21 @@ pub fn panel() -> Html {
                 form.dispatch(FormAction::Autofill);
             }
             || ()
+        });
+    }
+
+    {
+        let form = form.clone();
+        use_effect_with((), move |_| {
+            let mut last = current_channel();
+            let watcher = Interval::new(CHANNEL_POLL_MS, move || {
+                let current = current_channel();
+                if current != last {
+                    last = current;
+                    form.dispatch(FormAction::Autofill);
+                }
+            });
+            move || drop(watcher)
         });
     }
 
