@@ -46,14 +46,31 @@ pub const STYLES: &str = r#"
 }
 .icon-button:hover { background: #35373c; color: #dbdee1; }
 
-.body { padding: 12px; display: grid; gap: 9px; max-height: 46vh; overflow-y: auto; }
-.body, .log { scrollbar-width: thin; scrollbar-color: #4e5058 transparent; }
-.body::-webkit-scrollbar, .log::-webkit-scrollbar { width: 8px; }
-.body::-webkit-scrollbar-thumb, .log::-webkit-scrollbar-thumb {
-  background: #4e5058;
-  border-radius: 4px;
+.body {
+  padding: 12px;
+  display: grid;
+  gap: 9px;
+  max-height: 56vh;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  background-color: #1e1f22;
+  background-image:
+    linear-gradient(#1e1f22 30%, rgba(30, 31, 34, 0)),
+    linear-gradient(rgba(30, 31, 34, 0), #1e1f22 70%),
+    radial-gradient(farthest-side at 50% 0, rgba(0, 0, 0, .5), rgba(0, 0, 0, 0)),
+    radial-gradient(farthest-side at 50% 100%, rgba(0, 0, 0, .5), rgba(0, 0, 0, 0));
+  background-position: 0 0, 0 100%, 0 0, 0 100%;
+  background-size: 100% 34px, 100% 34px, 100% 14px, 100% 14px;
+  background-repeat: no-repeat;
+  background-attachment: local, local, scroll, scroll;
 }
-.body::-webkit-scrollbar-track, .log::-webkit-scrollbar-track { background: transparent; }
+.body, .log { scrollbar-width: thin; scrollbar-color: #6d6f78 #2b2d31; }
+.body::-webkit-scrollbar, .log::-webkit-scrollbar { width: 10px; }
+.body::-webkit-scrollbar-thumb, .log::-webkit-scrollbar-thumb {
+  background: #6d6f78;
+  border-radius: 5px;
+}
+.body::-webkit-scrollbar-track, .log::-webkit-scrollbar-track { background: #2b2d31; }
 .body > *, .row > *, .field > * { min-width: 0; }
 .field { display: grid; gap: 4px; }
 .field label { font-size: 12px; text-transform: uppercase; letter-spacing: .02em; color: #949ba4; }
