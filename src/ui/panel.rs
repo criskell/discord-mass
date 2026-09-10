@@ -81,6 +81,7 @@ pub fn panel() -> Html {
                         </button>
                     </div>
                     { stats_row(&stats) }
+                    { eta_row(&stats) }
                 </div>
                 <div class="log">
                     { for log.lines.iter().map(render_line) }
@@ -252,6 +253,28 @@ fn stats_row(stats: &UseStateHandle<Stats>) -> Html {
             }) }
         </div>
     }
+}
+
+fn eta_row(stats: &UseStateHandle<Stats>) -> Html {
+    if stats.eta_ms == 0 {
+        return Html::default();
+    }
+
+    html! { <div class="eta">{ format!("faltam ~{}", format_duration(stats.eta_ms)) }</div> }
+}
+
+fn format_duration(milliseconds: u64) -> String {
+    let seconds = milliseconds / 1000;
+    if seconds < 60 {
+        return format!("{seconds} s");
+    }
+
+    let minutes = seconds / 60;
+    if minutes < 60 {
+        return format!("{minutes} min");
+    }
+
+    format!("{} h {} min", minutes / 60, minutes % 60)
 }
 
 fn render_line(line: &Rc<LogLine>) -> Html {

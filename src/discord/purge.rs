@@ -49,6 +49,7 @@ pub struct Stats {
     pub skipped: u64,
     pub failed: u64,
     pub remaining: u64,
+    pub eta_ms: u64,
 }
 
 #[derive(Clone, Default, PartialEq)]
@@ -78,13 +79,21 @@ struct Session {
     filters: Filters,
     control: Control,
     events: Events,
+    started_at: f64,
     stats: Stats,
 }
 
 impl Session {
     fn new(filters: Filters, control: Control, events: Events) -> Self {
         let api = build_api(&events);
-        Self { api, filters, control, events, stats: Stats::default() }
+        Self {
+            api,
+            filters,
+            control,
+            events,
+            started_at: js_sys::Date::now(),
+            stats: Stats::default(),
+        }
     }
 
     fn announce_mode(&self) {
@@ -176,6 +185,8 @@ impl Session {
             }
         };
 
+        self.stats.eta_ms = 0;
+        (self.events.stats)(self.stats);
         self.control.set(final_state);
         (self.events.state)(final_state);
         self.log(LogKind::Dry, self.summary());
@@ -191,8 +202,24 @@ impl Session {
         format!("{head}, {} puladas, {} falhas", self.stats.skipped, self.stats.failed)
     }
 
-    fn emit_stats(&self) {
+    fn emit_stats(&mut self) {
+        self.stats.eta_ms = self.estimate_remaining_ms();
         (self.events.stats)(self.stats);
+    }
+
+    fn estimate_remaining_ms(&self) -> u64 {
+        let processed = self.stats.deleted
+            + self.stats.simulated
+            + self.stats.skipped
+            + self.stats.failed;
+
+        if processed == 0 || self.stats.remaining == 0 {
+            return 0;
+        }
+
+        let elapsed = js_sys::Date::now() - self.started_at;
+        let per_message = elapsed / processed as f64;
+        (per_message * self.stats.remaining as f64) as u64
     }
 
     fn log(&self, kind: LogKind, text: String) {

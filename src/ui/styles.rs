@@ -124,6 +124,7 @@ button.action.danger { background: #da373c; }
 .footer { padding: 10px 12px; border-top: 1px solid #2b2d31; display: grid; gap: 8px; }
 .stats { display: flex; justify-content: space-between; font-size: 12px; color: #949ba4; }
 .stats b { color: #dbdee1; font-weight: 600; }
+.eta { font-size: 12px; color: #6d6f78; text-align: right; }
 
 .log {
   border-top: 1px solid #2b2d31;
