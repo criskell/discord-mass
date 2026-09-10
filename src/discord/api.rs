@@ -4,7 +4,7 @@ use std::rc::Rc;
 use serde::Deserialize;
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
-use web_sys::{Headers, Request, RequestCredentials, RequestInit, Response};
+use web_sys::{Headers, Request, RequestInit, Response};
 
 use super::control::{sleep, Control};
 
@@ -202,7 +202,6 @@ impl Api {
         let init = RequestInit::new();
         init.set_method(method);
         init.set_headers(&headers);
-        init.set_credentials(RequestCredentials::Omit);
 
         let request = Request::new_with_str_and_init(&format!("{origin}{API_PATH}{path}"), &init)
             .map_err(to_transport_error)?;
