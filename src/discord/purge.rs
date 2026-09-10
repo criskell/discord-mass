@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use super::api::{Api, ApiError, DeleteOutcome, Query};
+use super::api::{Api, ApiError, DeleteOutcome, Message, Query};
 use super::control::{sleep, wait_while_paused, Control, RunState};
 use super::filter::{classify, describe, Verdict};
 
@@ -67,125 +67,137 @@ pub struct Events {
 }
 
 pub async fn run(filters: Filters, control: Control, events: Events) -> Stats {
-    let mut stats = Stats::default();
-    let api = build_api(&events);
-
-    let mode = if filters.dry_run {
-        "simulação: nada será apagado"
-    } else {
-        "execução: as mensagens serão apagadas"
-    };
-    (events.log)(LogLine::new(LogKind::Dry, mode.to_owned()));
-
-    let outcome = drive(&api, &filters, &control, &events, &mut stats).await;
-
-    let final_state = match outcome {
-        Ok(()) if control.is_stopped() => RunState::Stopped,
-        Ok(()) => RunState::Finished,
-        Err(ApiError::Stopped) => RunState::Stopped,
-        Err(error) => {
-            (events.log)(LogLine::error(error.to_string()));
-            RunState::Failed
-        }
-    };
-
-    control.set(final_state);
-    (events.state)(final_state);
-    (events.log)(LogLine::new(LogKind::Dry, summary(&stats, filters.dry_run)));
-    stats
+    let mut session = Session::new(filters, control, events);
+    session.announce_mode();
+    let outcome = session.drive().await;
+    session.finish(outcome)
 }
 
-fn summary(stats: &Stats, dry_run: bool) -> String {
-    let head = if dry_run {
-        format!("fim da simulação: {} seriam apagadas", stats.simulated)
-    } else {
-        format!("fim: {} apagadas", stats.deleted)
-    };
-    format!("{head}, {} puladas, {} falhas", stats.skipped, stats.failed)
+struct Session {
+    api: Api,
+    filters: Filters,
+    control: Control,
+    events: Events,
+    stats: Stats,
 }
 
-async fn drive(
-    api: &Api,
-    filters: &Filters,
-    control: &Control,
-    events: &Events,
-    stats: &mut Stats,
-) -> Result<(), ApiError> {
-    let mut query = filters.query.clone();
+impl Session {
+    fn new(filters: Filters, control: Control, events: Events) -> Self {
+        let api = build_api(&events);
+        Self { api, filters, control, events, stats: Stats::default() }
+    }
 
-    loop {
-        if control.is_stopped() {
-            return Ok(());
-        }
+    fn announce_mode(&self) {
+        let mode = if self.filters.dry_run {
+            "simulação: nada será apagado"
+        } else {
+            "execução: as mensagens serão apagadas"
+        };
+        self.log(LogKind::Dry, mode.to_owned());
+    }
 
-        let page = api.search(&query, control).await?;
-        stats.remaining = page.total_results;
-        (events.stats)(*stats);
+    async fn drive(&mut self) -> Result<(), ApiError> {
+        let mut query = self.filters.query.clone();
 
-        if page.hits.is_empty() {
-            return Ok(());
-        }
-
-        for message in page.hits {
-            if !wait_while_paused(control).await {
+        loop {
+            if self.control.is_stopped() {
                 return Ok(());
             }
-            query.min_id = message.id.clone();
-            process(api, filters, control, events, stats, &message).await?;
-        }
 
-        if !sleep(filters.search_delay_ms, control).await {
+            let page = self.api.search(&query, &self.control).await?;
+            self.stats.remaining = page.total_results;
+            self.emit_stats();
+
+            if page.hits.is_empty() {
+                return Ok(());
+            }
+
+            for message in page.hits {
+                if !wait_while_paused(&self.control).await {
+                    return Ok(());
+                }
+                query.min_id = message.id.clone();
+                self.process(&message).await?;
+            }
+
+            if !sleep(self.filters.search_delay_ms, &self.control).await {
+                return Ok(());
+            }
+        }
+    }
+
+    async fn process(&mut self, message: &Message) -> Result<(), ApiError> {
+        let verdict = classify(message, &self.filters.query.author_id, self.filters.include_pinned);
+
+        if let Verdict::Skip(reason) = verdict {
+            self.stats.skipped += 1;
+            self.log(LogKind::Skip, format!("pulada ({reason}) — {}", describe(message)));
+            self.emit_stats();
             return Ok(());
         }
-    }
-}
 
-async fn process(
-    api: &Api,
-    filters: &Filters,
-    control: &Control,
-    events: &Events,
-    stats: &mut Stats,
-    message: &super::api::Message,
-) -> Result<(), ApiError> {
-    if let Verdict::Skip(reason) = classify(message, &filters.query.author_id, filters.include_pinned)
-    {
-        stats.skipped += 1;
-        let text = format!("pulada ({reason}) — {}", describe(message));
-        (events.log)(LogLine::new(LogKind::Skip, text));
-        (events.stats)(*stats);
-        return Ok(());
-    }
-
-    if filters.dry_run {
-        stats.simulated += 1;
-        let text = format!("apagaria — {}", describe(message));
-        (events.log)(LogLine::new(LogKind::Dry, text));
-        (events.stats)(*stats);
-        return Ok(());
-    }
-
-    match api.delete(&message.channel_id, &message.id, control).await {
-        Ok(outcome) => {
-            stats.deleted += 1;
-            let prefix = match outcome {
-                DeleteOutcome::Deleted => "apagada",
-                DeleteOutcome::AlreadyGone => "já não existia",
-            };
-            (events.log)(LogLine::new(LogKind::Delete, format!("{prefix} — {}", describe(message))));
+        if self.filters.dry_run {
+            self.stats.simulated += 1;
+            self.log(LogKind::Dry, format!("apagaria — {}", describe(message)));
+            self.emit_stats();
+            return Ok(());
         }
-        Err(ApiError::Stopped) => return Err(ApiError::Stopped),
-        Err(ApiError::Unauthorized) => return Err(ApiError::Unauthorized),
-        Err(error) => {
-            stats.failed += 1;
-            let text = format!("falhou — {} ({error})", describe(message));
-            (events.log)(LogLine::error(text));
+
+        match self.api.delete(&message.channel_id, &message.id, &self.control).await {
+            Ok(outcome) => {
+                self.stats.deleted += 1;
+                let prefix = match outcome {
+                    DeleteOutcome::Deleted => "apagada",
+                    DeleteOutcome::AlreadyGone => "já não existia",
+                };
+                self.log(LogKind::Delete, format!("{prefix} — {}", describe(message)));
+            }
+            Err(ApiError::Stopped) => return Err(ApiError::Stopped),
+            Err(ApiError::Unauthorized) => return Err(ApiError::Unauthorized),
+            Err(error) => {
+                self.stats.failed += 1;
+                self.log(LogKind::Error, format!("falhou — {} ({error})", describe(message)));
+            }
         }
+
+        self.emit_stats();
+        sleep(self.filters.delete_delay_ms, &self.control).await;
+        Ok(())
     }
 
-    (events.stats)(*stats);
-    sleep(filters.delete_delay_ms, control).await;
-    Ok(())
+    fn finish(&mut self, outcome: Result<(), ApiError>) -> Stats {
+        let final_state = match outcome {
+            Ok(()) if self.control.is_stopped() => RunState::Stopped,
+            Ok(()) => RunState::Finished,
+            Err(ApiError::Stopped) => RunState::Stopped,
+            Err(error) => {
+                self.log(LogKind::Error, error.to_string());
+                RunState::Failed
+            }
+        };
+
+        self.control.set(final_state);
+        (self.events.state)(final_state);
+        self.log(LogKind::Dry, self.summary());
+        self.stats
+    }
+
+    fn summary(&self) -> String {
+        let head = if self.filters.dry_run {
+            format!("fim da simulação: {} seriam apagadas", self.stats.simulated)
+        } else {
+            format!("fim: {} apagadas", self.stats.deleted)
+        };
+        format!("{head}, {} puladas, {} falhas", self.stats.skipped, self.stats.failed)
+    }
+
+    fn emit_stats(&self) {
+        (self.events.stats)(self.stats);
+    }
+
+    fn log(&self, kind: LogKind, text: String) {
+        (self.events.log)(LogLine::new(kind, text));
+    }
 }
 
 fn build_api(events: &Events) -> Api {
