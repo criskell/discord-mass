@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use yew::Reducible;
 
-use crate::discord::{snowflake, Filters, Query};
+use crate::discord::{snowflake, token, Filters, Query};
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Field {
@@ -80,6 +80,7 @@ impl Default for Form {
 pub enum FormAction {
     Set(Field, String),
     Toggle(Field),
+    Autofill,
 }
 
 impl Reducible for Form {
@@ -90,6 +91,7 @@ impl Reducible for Form {
         match action {
             FormAction::Set(field, value) => next.set(field, value),
             FormAction::Toggle(field) => next.toggle(field),
+            FormAction::Autofill => next.autofill(),
         }
         Rc::new(next)
     }
@@ -134,6 +136,18 @@ impl Form {
         }
     }
 
+    fn autofill(&mut self) {
+        if let Some((guild_id, channel_id)) = current_channel() {
+            self.guild_id = guild_id;
+            self.channel_id = channel_id;
+        }
+        if self.author_id.is_empty() {
+            if let Some(user_id) = own_user_id() {
+                self.author_id = user_id;
+            }
+        }
+    }
+
     fn toggle(&mut self, field: Field) {
         match field {
             Field::IncludePinned => self.include_pinned = !self.include_pinned,
@@ -169,6 +183,23 @@ impl Form {
             search_delay_ms: parse_delay(&self.search_delay),
         })
     }
+}
+
+pub fn current_channel() -> Option<(String, String)> {
+    let path = web_sys::window()?.location().pathname().ok()?;
+    let mut segments = path.split('/').skip(2);
+    let scope = segments.next()?.to_owned();
+    let channel_id = segments.next()?.to_owned();
+
+    if channel_id.is_empty() {
+        return None;
+    }
+
+    Some((if scope == "@me" { String::new() } else { scope }, channel_id))
+}
+
+pub fn own_user_id() -> Option<String> {
+    token::read().as_deref().and_then(token::user_id)
 }
 
 fn to_snowflake(value: &str) -> Result<String, String> {

@@ -6,7 +6,10 @@ use yew::prelude::*;
 
 use crate::discord::{purge, token, Control, Events, Filters, LogLine, RunState, Stats};
 
-use super::form::{Field, Form, FormAction, TextSpec, ATTACHMENT_OPTIONS, TEXT_FIELDS};
+use super::form::{
+    current_channel, own_user_id, Field, Form, FormAction, TextSpec, ATTACHMENT_OPTIONS,
+    TEXT_FIELDS,
+};
 use super::log::{LogAction, LogModel};
 
 #[function_component(Panel)]
@@ -23,6 +26,16 @@ pub fn panel() -> Html {
         let visible = visible.clone();
         use_effect_with((), move |_| {
             crate::bridge::register(Callback::from(move |_| visible.dispatch(())));
+            || ()
+        });
+    }
+
+    {
+        let form = form.clone();
+        use_effect_with(visible.0, move |shown| {
+            if *shown {
+                form.dispatch(FormAction::Autofill);
+            }
             || ()
         });
     }
@@ -201,7 +214,7 @@ fn fill_buttons(form: &UseReducerHandle<Form>, log: &UseReducerHandle<LogModel>)
         let form = form.clone();
         let log = log.clone();
         Callback::from(move |_: MouseEvent| {
-            match token::read().as_deref().and_then(token::user_id) {
+            match own_user_id() {
                 Some(user_id) => form.dispatch(FormAction::Set(Field::AuthorId, user_id)),
                 None => log.dispatch(LogAction::Push(LogLine::error(
                     "não consegui ler o seu ID; faça login de novo".to_owned(),
@@ -349,19 +362,6 @@ fn stop_callback(control: &Rc<std::cell::RefCell<Option<Control>>>) -> Callback<
             handle.set(RunState::Stopped);
         }
     })
-}
-
-fn current_channel() -> Option<(String, String)> {
-    let path = web_sys::window()?.location().pathname().ok()?;
-    let mut segments = path.split('/').skip(2);
-    let scope = segments.next()?.to_owned();
-    let channel_id = segments.next()?.to_owned();
-
-    if channel_id.is_empty() {
-        return None;
-    }
-
-    Some((if scope == "@me" { String::new() } else { scope }, channel_id))
 }
 
 fn confirmed(filters: &Filters) -> bool {
