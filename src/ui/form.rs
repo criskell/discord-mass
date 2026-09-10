@@ -72,7 +72,7 @@ impl Default for Form {
             delete_delay: "900".to_owned(),
             search_delay: "1200".to_owned(),
             include_pinned: false,
-            dry_run: true,
+            dry_run: false,
         }
     }
 }
