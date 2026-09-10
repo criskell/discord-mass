@@ -1,7 +1,10 @@
-Unpacked build of the extension.
+Packaged build of the extension.
 
-Download the zip and unpack it somewhere you can keep. On Firefox, open `about:debugging`,
-click Load Temporary Add-on and pick the `manifest.json` inside the folder. On Chrome, open
-`chrome://extensions`, turn on developer mode and load the folder itself.
+On Firefox, open `about:debugging`, click Load Temporary Add-on and pick this zip directly.
+You do not need to unpack it. If the file dialog hides `.zip` files, rename it to `.xpi` —
+same format, and the picker will show it.
+
+On Chrome, unpack the zip first, then open `chrome://extensions`, turn on developer mode
+and load the resulting folder.
 
 The package is unsigned, so Firefox forgets it when the browser restarts.
